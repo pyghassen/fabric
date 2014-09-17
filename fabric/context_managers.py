@@ -33,7 +33,8 @@ Context managers for use with the ``with`` statement.
     ``nested`` itself -- see its API doc for details.
 """
 
-from contextlib import contextmanager, nested
+# from contextlib import contextmanager, nested
+from contextlib import contextmanager, ExitStack
 import sys
 import socket
 import select
@@ -240,7 +241,11 @@ def settings(*args, **kwargs):
     managers = list(args)
     if kwargs:
         managers.append(_setenv(kwargs))
-    return nested(*managers)
+
+    with ExitStack() as stack:
+        managers = [stack.enter_context(manager) for manager in managers]
+    # return nested(*managers)
+    return managers
 
 
 def cd(path):
@@ -532,22 +537,28 @@ def remote_tunnel(remote_port, local_port=None, local_host="localhost",
     channels = []
     threads = []
 
-    def accept(channel, (src_addr, src_port), (dest_addr, dest_port)):
+    # def accept(channel, (src_addr, src_port), (dest_addr, dest_port)):
+    def accept(channel, src_addr, src_port, dest_addr, dest_port):
         channels.append(channel)
         sock = socket.socket()
         sockets.append(sock)
 
         try:
             sock.connect((local_host, local_port))
-        except Exception, e:
-            print "[%s] rtunnel: cannot connect to %s:%d (from local)" % (env.host_string, local_host, local_port)
+        # except Exception, e:
+        except Exception as e:
+            # print "[%s] rtunnel: cannot connect to %s:%d (from local)" % (env.host_string, local_host, local_port)
+            print("[%s] rtunnel: cannot connect to %s:%d (from local)" % (env.host_string, local_host, local_port))
             chan.close()
             return
 
-        print "[%s] rtunnel: opened reverse tunnel: %r -> %r -> %r"\
+        # print "[%s] rtunnel: opened reverse tunnel: %r -> %r -> %r"\
+        #       % (env.host_string, channel.origin_addr,
+        #          channel.getpeername(), (local_host, local_port))
+        print("[%s] rtunnel: opened reverse tunnel: %r -> %r -> %r"\
               % (env.host_string, channel.origin_addr,
                  channel.getpeername(), (local_host, local_port))
-
+        )
         th = ThreadHandler('fwd', _forwarder, channel, sock)
         threads.append(th)
 
